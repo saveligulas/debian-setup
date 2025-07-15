@@ -63,7 +63,7 @@ echo "--- Sudo group check complete ---"
 echo
 
 # --- APT PACKAGE INSTALLATION ---
-DEV_PACKAGES="git wget curl vim neovim zsh i3 jq x11-xserver-utils gpg firefox-esr openssh-client openssh-server"
+DEV_PACKAGES="git wget curl vim neovim zsh i3 jq x11-xserver-utils gpg firefox-esr openssh-client openssh-server build-essential"
 echo "--- Installing APT packages ---"
 apt-get update
 for pkg in $DEV_PACKAGES; do
@@ -89,12 +89,23 @@ fi
 echo "--- Rust installation check complete ---"
 echo
 
-# --- HOMEBREW INSTALLATION ---
-echo "--- Installing Homebrew ---"
-HOMEBREW_BIN="/home/saveli/.linuxbrew/bin/brew"
-if [ ! -f "$HOMEBREW_BIN" ]; then
+# --- HOMEBREW INSTALLATION (THE CORRECT WAY) ---
+echo "--- Installing Homebrew to /home/linuxbrew/.linuxbrew ---"
+HOMEBREW_DIR="/home/linuxbrew/.linuxbrew"
+if [ ! -d "$HOMEBREW_DIR" ]; then
     echo "Homebrew not found. Installing..."
-    sudo -u saveli /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    # Create the directory structure and install as root
+    mkdir -p "$HOMEBREW_DIR"
+    curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C "$HOMEBREW_DIR"
+    
+    # Set ownership to the 'saveli' user
+    echo "Setting ownership of Homebrew installation to 'saveli'..."
+    chown -R saveli:saveli /home/linuxbrew
+    
+    # Configure the user's shell environment
+    echo "Configuring shell environment for Homebrew..."
+    sudo -u saveli -i bash -c 'echo "eval \"\$($(brew --prefix)/bin/brew shellenv)\"" >> ~/.profile'
+    
     echo "Homebrew has been installed."
 else
     echo "Homebrew is already installed."
@@ -106,9 +117,10 @@ echo
 BREW_PACKAGES="git-delta bat fzf exa zoxide ripgrep"
 echo "--- Installing Homebrew tools ---"
 for pkg in $BREW_PACKAGES; do
-    if ! sudo -u saveli env "PATH=/home/saveli/.linuxbrew/bin:$PATH" brew list "$pkg" &>/dev/null; then
+    # Run brew commands within a login shell (-i) for 'saveli' to load the correct environment.
+    if ! sudo -u saveli -i bash -c "brew list '$pkg'" &>/dev/null; then
         echo "Installing $pkg with Homebrew..."
-        sudo -u saveli env "PATH=/home/saveli/.linuxbrew/bin:$PATH" HOMEBREW_NO_AUTO_UPDATE=1 brew install "$pkg"
+        sudo -u saveli -i bash -c "HOMEBREW_NO_AUTO_UPDATE=1 brew install '$pkg'"
     else
         echo "$pkg is already installed."
     fi
@@ -279,9 +291,6 @@ alias gh_mr_view='gh pr view --web'
 alias gh_mr_co='gh pr checkout'
 alias gh_fork='gh repo fork --clone'
 alias gh_view='gh repo view --web'
-
-# Ensure Homebrew is in the path for interactive shells
-eval "$(/home/saveli/.linuxbrew/bin/brew shellenv)"
 # --- End Custom Aliases ---
 EOF
 )
