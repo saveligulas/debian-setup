@@ -468,12 +468,13 @@ if ! sudo -u saveli -i bash -c "gh auth status" &>/dev/null; then
     echo
     echo "#####################################################################"
     echo "#                                                                   #"
-    echo "#  GitHub CLI is not authenticated. Please follow the prompts to    #"
-    echo "#  log in. You will be asked to authenticate in your web browser.   #"
+    echo "#  GitHub CLI is not authenticated. Using device flow method.       #"
+    echo "#  You will be given a code to enter at https://github.com/login/device #"
     echo "#                                                                   #"
     echo "#####################################################################"
     echo
-    sudo -u saveli -i bash -c "gh auth login"
+    # Use device flow instead of web browser
+    sudo -u saveli -i bash -c "gh auth login --git-protocol https --web=false"
 else
     echo "GitHub CLI is already authenticated for user 'saveli'."
 fi
