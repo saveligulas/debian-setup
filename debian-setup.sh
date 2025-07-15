@@ -93,7 +93,8 @@ echo
 
 # --- HOMEBREW INSTALLATION ---
 echo "--- Installing Homebrew ---"
-if ! sudo -u saveli -i bash -c 'command -v brew' &>/dev/null; then
+# Check if brew is available by using full path
+if ! sudo -u saveli bash -c 'test -x /home/linuxbrew/.linuxbrew/bin/brew' && ! sudo -u saveli bash -c 'command -v brew' &>/dev/null; then
     echo "Homebrew not found. Installing..."
     sudo -u saveli bash -c '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
     echo "Homebrew has been installed."
@@ -114,17 +115,31 @@ for file in "$PROFILE_FILE" "$ZSHRC_FILE"; do
         echo -e "\n# Add Homebrew to PATH\n$BREW_INIT_LINE" | sudo -u saveli tee -a "$file" > /dev/null
     fi
 done
+
+# Test if brew is working
+echo "Testing Homebrew installation..."
+if sudo -u saveli bash -c 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && brew --version' &>/dev/null; then
+    echo "Homebrew is working correctly."
+else
+    echo "Warning: Homebrew test failed. Will use full path for commands."
+fi
 echo "--- Homebrew setup complete ---"
 echo
 
 # --- BREW TOOL INSTALLATION ---
-BREW_PACKAGES="git-delta bat fzf exa zoxide ripgrep"
+BREW_PACKAGES="git-delta bat fzf eza zoxide ripgrep"
 echo "--- Installing Homebrew tools ---"
+
+# Ensure brew is in PATH by sourcing the environment
+BREW_ENV='eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"'
+
 for pkg in $BREW_PACKAGES; do
-    # Run brew commands within a login shell (-i) to ensure the environment from .profile is loaded.
-    if ! sudo -u saveli -i bash -c "brew list '$pkg'" &>/dev/null; then
+    # Use full path to brew and ensure environment is loaded
+    if ! sudo -u saveli bash -c "$BREW_ENV && brew list '$pkg'" &>/dev/null; then
         echo "Installing $pkg with Homebrew..."
-        sudo -u saveli -i bash -c "HOMEBREW_NO_AUTO_UPDATE=1 brew install '$pkg'"
+        if ! sudo -u saveli bash -c "$BREW_ENV && HOMEBREW_NO_AUTO_UPDATE=1 brew install '$pkg'"; then
+            echo "Failed to install $pkg. Continuing with other packages..."
+        fi
     else
         echo "$pkg is already installed."
     fi
@@ -134,17 +149,22 @@ echo
 
 # --- GIT DELTA CONFIGURATION ---
 echo "--- Configuring Git to use git-delta ---"
-if [[ "$(sudo -u saveli git config --global core.pager)" != "delta" ]]; then
-    echo "Setting git-delta as the core.pager for Git..."
-    sudo -u saveli git config --global core.pager "delta"
+# Check if git-delta was successfully installed
+if sudo -u saveli bash -c 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && command -v delta' &>/dev/null; then
+    if [[ "$(sudo -u saveli git config --global core.pager)" != "delta" ]]; then
+        echo "Setting git-delta as the core.pager for Git..."
+        sudo -u saveli git config --global core.pager "delta"
+    else
+        echo "git-delta is already set as the core.pager."
+    fi
+    if [[ "$(sudo -u saveli git config --global interactive.diffFilter)" != "delta --color-only" ]]; then
+        echo "Setting git-delta as the interactive.diffFilter for Git..."
+        sudo -u saveli git config --global interactive.diffFilter "delta --color-only"
+    else
+        echo "git-delta is already set as the interactive.diffFilter."
+    fi
 else
-    echo "git-delta is already set as the core.pager."
-fi
-if [[ "$(sudo -u saveli git config --global interactive.diffFilter)" != "delta --color-only" ]]; then
-    echo "Setting git-delta as the interactive.diffFilter for Git..."
-    sudo -u saveli git config --global interactive.diffFilter "delta --color-only"
-else
-    echo "git-delta is already set as the interactive.diffFilter."
+    echo "git-delta not found. Skipping Git configuration."
 fi
 echo "--- Git Delta configuration complete ---"
 echo
