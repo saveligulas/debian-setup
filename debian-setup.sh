@@ -91,43 +91,30 @@ fi
 echo "--- Rust installation check complete ---"
 echo
 
-# --- HOMEBREW INSTALLATION (THE CORRECT WAY) ---
-echo "--- Installing Homebrew to /home/linuxbrew/.linuxbrew ---"
-HOMEBREW_DIR="/home/linuxbrew/.linuxbrew"
-if [ ! -d "$HOMEBREW_DIR" ]; then
+# --- HOMEBREW INSTALLATION ---
+echo "--- Installing Homebrew ---"
+if ! sudo -u saveli -i bash -c 'command -v brew' &>/dev/null; then
     echo "Homebrew not found. Installing..."
-    # Create the directory and install as root
-    mkdir -p "$HOMEBREW_DIR"
-    curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C "$HOMEBREW_DIR"
-    
-    # Set ownership for the 'saveli' user
-    echo "Setting ownership of Homebrew installation to 'saveli'..."
-    chown -R saveli:saveli /home/linuxbrew
-    
-    echo "Homebrew files have been installed."
+    sudo -u saveli bash -c '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    echo "Homebrew has been installed."
 else
     echo "Homebrew is already installed."
 fi
 
-# --- CONFIGURE SHELL FOR HOMEBREW (THE CRITICAL STEP) ---
-echo "--- Adding Homebrew to user's shell environments ---"
+# --- CONFIGURE SHELL FOR HOMEBREW ---
+echo "--- Adding Homebrew to shell environments ---"
 PROFILE_FILE="/home/saveli/.profile"
 ZSHRC_FILE="/home/saveli/.zshrc"
 BREW_INIT_LINE='eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"'
 
-# Configure .profile (for login shells, used by `sudo -i`)
-if ! sudo -u saveli grep -qF "$BREW_INIT_LINE" "$PROFILE_FILE"; then
-    echo "Adding Homebrew to .profile..."
-    echo -e "\n# Add Homebrew to PATH\n$BREW_INIT_LINE" | sudo -u saveli tee -a "$PROFILE_FILE" > /dev/null
-fi
-
-# Configure .zshrc (for interactive Zsh shells)
-sudo -u saveli touch "$ZSHRC_FILE"
-if ! sudo -u saveli grep -qF "$BREW_INIT_LINE" "$ZSHRC_FILE"; then
-    echo "Adding Homebrew to .zshrc..."
-    echo -e "\n# Add Homebrew to PATH\n$BREW_INIT_LINE" | sudo -u saveli tee -a "$ZSHRC_FILE" > /dev/null
-fi
-echo "--- Homebrew shell configuration complete ---"
+for file in "$PROFILE_FILE" "$ZSHRC_FILE"; do
+    sudo -u saveli touch "$file"
+    if ! sudo -u saveli grep -qF "$BREW_INIT_LINE" "$file"; then
+        echo "Adding Homebrew to $(basename $file)..."
+        echo -e "\n# Add Homebrew to PATH\n$BREW_INIT_LINE" | sudo -u saveli tee -a "$file" > /dev/null
+    fi
+done
+echo "--- Homebrew setup complete ---"
 echo
 
 # --- BREW TOOL INSTALLATION ---
