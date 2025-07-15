@@ -63,6 +63,7 @@ echo "--- Sudo group check complete ---"
 echo
 
 # --- APT PACKAGE INSTALLATION ---
+# build-essential is required for Homebrew
 DEV_PACKAGES="git wget curl vim neovim zsh i3 jq x11-xserver-utils gpg firefox-esr openssh-client openssh-server build-essential"
 echo "--- Installing APT packages ---"
 apt-get update
@@ -81,6 +82,7 @@ echo
 echo "--- Installing Rust (rustup) ---"
 if ! sudo -u saveli -i bash -c 'command -v cargo' &>/dev/null; then
     echo "Rust is not installed. Installing via rustup..."
+    # The rustup script correctly modifies the user's .profile
     sudo -u saveli bash -c "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
     echo "Rust has been installed."
 else
@@ -94,30 +96,45 @@ echo "--- Installing Homebrew to /home/linuxbrew/.linuxbrew ---"
 HOMEBREW_DIR="/home/linuxbrew/.linuxbrew"
 if [ ! -d "$HOMEBREW_DIR" ]; then
     echo "Homebrew not found. Installing..."
-    # Create the directory structure and install as root
+    # Create the directory and install as root
     mkdir -p "$HOMEBREW_DIR"
     curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C "$HOMEBREW_DIR"
     
-    # Set ownership to the 'saveli' user
+    # Set ownership for the 'saveli' user
     echo "Setting ownership of Homebrew installation to 'saveli'..."
     chown -R saveli:saveli /home/linuxbrew
     
-    # Configure the user's shell environment
-    echo "Configuring shell environment for Homebrew..."
-    sudo -u saveli -i bash -c 'echo "eval \"\$($(brew --prefix)/bin/brew shellenv)\"" >> ~/.profile'
-    
-    echo "Homebrew has been installed."
+    echo "Homebrew files have been installed."
 else
     echo "Homebrew is already installed."
 fi
-echo "--- Homebrew installation check complete ---"
+
+# --- CONFIGURE SHELL FOR HOMEBREW (THE CRITICAL STEP) ---
+echo "--- Adding Homebrew to user's shell environments ---"
+PROFILE_FILE="/home/saveli/.profile"
+ZSHRC_FILE="/home/saveli/.zshrc"
+BREW_INIT_LINE='eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"'
+
+# Configure .profile (for login shells, used by `sudo -i`)
+if ! sudo -u saveli grep -qF "$BREW_INIT_LINE" "$PROFILE_FILE"; then
+    echo "Adding Homebrew to .profile..."
+    echo -e "\n# Add Homebrew to PATH\n$BREW_INIT_LINE" | sudo -u saveli tee -a "$PROFILE_FILE" > /dev/null
+fi
+
+# Configure .zshrc (for interactive Zsh shells)
+sudo -u saveli touch "$ZSHRC_FILE"
+if ! sudo -u saveli grep -qF "$BREW_INIT_LINE" "$ZSHRC_FILE"; then
+    echo "Adding Homebrew to .zshrc..."
+    echo -e "\n# Add Homebrew to PATH\n$BREW_INIT_LINE" | sudo -u saveli tee -a "$ZSHRC_FILE" > /dev/null
+fi
+echo "--- Homebrew shell configuration complete ---"
 echo
 
 # --- BREW TOOL INSTALLATION ---
 BREW_PACKAGES="git-delta bat fzf exa zoxide ripgrep"
 echo "--- Installing Homebrew tools ---"
 for pkg in $BREW_PACKAGES; do
-    # Run brew commands within a login shell (-i) for 'saveli' to load the correct environment.
+    # Run brew commands within a login shell (-i) to ensure the environment from .profile is loaded.
     if ! sudo -u saveli -i bash -c "brew list '$pkg'" &>/dev/null; then
         echo "Installing $pkg with Homebrew..."
         sudo -u saveli -i bash -c "HOMEBREW_NO_AUTO_UPDATE=1 brew install '$pkg'"
@@ -200,38 +217,27 @@ else
 fi
 
 echo "--- Configuring Zsh theme and plugins in .zshrc ---"
-ZSHRC_FILE="/home/saveli/.zshrc"
 NEW_THEME='ZSH_THEME="powerlevel10k/powerlevel10k"'
 NEW_PLUGINS='plugins=(git complete-alias zsh-autosuggestions zsh-syntax-highlighting fzf docker colored-man-pages alias-finder command-not-found history)'
-if ! grep -q '^ZSH_THEME="powerlevel10k/powerlevel10k"' "$ZSHRC_FILE"; then
+if ! sudo -u saveli grep -q '^ZSH_THEME="powerlevel10k/powerlevel10k"' "$ZSHRC_FILE"; then
     echo "Setting Powerlevel10k as the Zsh theme..."
     sudo -u saveli sed -i 's|^ZSH_THEME=.*|'"$NEW_THEME"'|' "$ZSHRC_FILE"
-    echo "Zsh theme has been set."
-else
-    echo "Powerlevel10k is already the configured Zsh theme."
 fi
-if ! grep -q "plugins=(.*zsh-autosuggestions.*)" "$ZSHRC_FILE"; then
+if ! sudo -u saveli grep -q "plugins=(.*zsh-autosuggestions.*)" "$ZSHRC_FILE"; then
     echo "Setting the custom plugin list in .zshrc..."
     sudo -u saveli sed -i "s/^plugins=(.*)/${NEW_PLUGINS}/" "$ZSHRC_FILE"
-    echo "Zsh plugins have been configured."
-else
-    echo "Zsh plugins are already configured in .zshrc."
 fi
 
 echo "--- Setting Zsh as default shell ---"
 if [[ "$(getent passwd saveli | cut -d: -f7)" != "$(which zsh)" ]]; then
     echo "Setting Zsh as the default shell for 'saveli'..."
     chsh -s "$(which zsh)" saveli
-    echo "Default shell for 'saveli' has been set to Zsh."
-else
-    echo "Zsh is already the default shell for 'saveli'."
 fi
 echo "--- Zsh & Oh My Zsh setup complete ---"
 echo
 
 # --- ZSH ALIAS CONFIGURATION ---
 echo "--- Configuring Zsh aliases ---"
-ZSHRC_FILE="/home/saveli/.zshrc"
 START_MARKER="# --- Custom Aliases ---"
 END_MARKER="# --- End Custom Aliases ---"
 
@@ -326,9 +332,6 @@ EOF
 if ! grep -qF 'set visualbell' "$VIMRC_FILE"; then
     echo "Adding Vim configuration to .vimrc..."
     echo "$VIM_CONFIG" | sudo -u saveli tee -a "$VIMRC_FILE" > /dev/null
-    echo "Vim configuration has been added."
-else
-    echo "Vim configuration already exists in .vimrc."
 fi
 echo "--- Vim configuration complete ---"
 echo
@@ -454,7 +457,7 @@ if ! command -v gh &>/dev/null; then
 else
     echo "GitHub CLI (gh) is already installed."
 fi
-if ! sudo -u saveli gh auth status &>/dev/null; then
+if ! sudo -u saveli -i bash -c "gh auth status" &>/dev/null; then
     echo
     echo "#####################################################################"
     echo "#                                                                   #"
@@ -463,7 +466,7 @@ if ! sudo -u saveli gh auth status &>/dev/null; then
     echo "#                                                                   #"
     echo "#####################################################################"
     echo
-    sudo -u saveli gh auth login
+    sudo -u saveli -i bash -c "gh auth login"
 else
     echo "GitHub CLI is already authenticated for user 'saveli'."
 fi
