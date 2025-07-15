@@ -93,22 +93,32 @@ echo
 
 # --- HOMEBREW INSTALLATION ---
 echo "--- Installing Homebrew ---"
-if ! command -v brew &>/dev/null; then
+# Note: Homebrew on Linux for a specific user installs to their home directory.
+HOMEBREW_PREFIX="/home/saveli/.linuxbrew"
+HOMEBREW_BIN="${HOMEBREW_PREFIX}/bin/brew"
+
+if [ ! -f "$HOMEBREW_BIN" ]; then
     echo "Homebrew not found. Installing..."
-    sudo -u saveli /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    sudo -u saveli bash -c 'echo "eval \"\$($(brew --prefix)/bin/brew shellenv)\"" >> /home/saveli/.profile'
-    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    # Run the installer as 'saveli'. NONINTERACTIVE=1 prevents prompts.
+    sudo -u saveli /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    
+    # The installer adds the PATH setup to .profile, but we need it for the current script.
+    # Source the brew environment to make it available to the rest of this script.
+    echo "Making Homebrew available to the current script..."
+    eval "$($HOMEBREW_BIN shellenv)"
+    
     echo "Homebrew has been installed."
 else
     echo "Homebrew is already installed."
 fi
+# Always ensure brew is available for subsequent steps in the script
+eval "$($HOMEBREW_BIN shellenv)"
 echo "--- Homebrew installation check complete ---"
 echo
 
 # --- BREW TOOL INSTALLATION ---
 BREW_PACKAGES="git-delta bat fzf exa zoxide ripgrep"
 echo "--- Installing Homebrew tools ---"
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 for pkg in $BREW_PACKAGES; do
     if ! sudo -u saveli brew list "$pkg" &>/dev/null; then
         echo "Installing $pkg with Homebrew..."
@@ -287,7 +297,7 @@ alias gh_fork='gh repo fork --clone'
 alias gh_view='gh repo view --web'
 
 # Ensure Homebrew is in the path
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+eval "$(/home/saveli/.linuxbrew/bin/brew shellenv)"
 # --- End Custom Aliases ---
 EOF
 )
