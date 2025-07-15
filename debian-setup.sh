@@ -98,6 +98,7 @@ HOMEBREW_BIN="${HOMEBREW_PREFIX}/bin/brew"
 
 if [ ! -f "$HOMEBREW_BIN" ]; then
     echo "Homebrew not found. Installing..."
+    # Run the installer non-interactively to prevent warnings and prompts.
     sudo -u saveli /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     
     echo "Making Homebrew available to the current script..."
@@ -117,7 +118,6 @@ echo "--- Installing Homebrew tools ---"
 for pkg in $BREW_PACKAGES; do
     if ! sudo -u saveli brew list "$pkg" &>/dev/null; then
         echo "Installing $pkg with Homebrew..."
-        # Set HOMEBREW_NO_AUTO_UPDATE=1 to prevent brew from auto-updating, which can hang the script.
         sudo -u saveli HOMEBREW_NO_AUTO_UPDATE=1 brew install "$pkg"
     else
         echo "$pkg is already installed."
@@ -236,6 +236,9 @@ END_MARKER="# --- End Custom Aliases ---"
 ZSH_ALIASES_CONFIG=$(cat <<'EOF'
 
 # --- Custom Aliases ---
+# Disable the bell sound
+unsetopt beep
+
 # Keyboard layout
 alias init_ch="setxkbmap ch de_nodeadkeys; echo \"changed keyboard layout to ch de_nodeadkeys\""
 
@@ -303,10 +306,13 @@ echo "--- Zsh alias configuration complete ---"
 echo
 
 # --- VIM CONFIGURATION ---
-echo "--- Configuring Vim cursor shape ---"
+echo "--- Configuring Vim ---"
 VIMRC_FILE="/home/saveli/.vimrc"
 sudo -u saveli touch "$VIMRC_FILE"
-VIM_CURSOR_CONFIG=$(cat <<'EOF'
+VIM_CONFIG=$(cat <<'EOF'
+
+" Replace audible bell with a visual flash
+set visualbell
 
 " Normal mode = block cursor
 " Insert mode = vertical bar cursor
@@ -318,12 +324,12 @@ if exists('&t_EI')
 endif
 EOF
 )
-if ! grep -qF 'let &t_SI' "$VIMRC_FILE"; then
-    echo "Adding cursor shape configuration to .vimrc..."
-    echo "$VIM_CURSOR_CONFIG" | sudo -u saveli tee -a "$VIMRC_FILE" > /dev/null
-    echo "Vim cursor configuration has been added."
+if ! grep -qF 'set visualbell' "$VIMRC_FILE"; then
+    echo "Adding Vim configuration to .vimrc..."
+    echo "$VIM_CONFIG" | sudo -u saveli tee -a "$VIMRC_FILE" > /dev/null
+    echo "Vim configuration has been added."
 else
-    echo "Vim cursor configuration already exists in .vimrc."
+    echo "Vim configuration already exists in .vimrc."
 fi
 echo "--- Vim configuration complete ---"
 echo
@@ -343,37 +349,29 @@ echo "--- Configuring Alacritty ---"
 ALACRITTY_CONFIG_DIR="/home/saveli/.config/alacritty"
 ALACRITTY_CONFIG_FILE="$ALACRITTY_CONFIG_DIR/alacritty.toml"
 
-# Define the entire Alacritty configuration
 ALACRITTY_CONFIG=$(cat <<'EOF'
 [env]
 TERM = "xterm-256color"
-
 [window]
 opacity = 0.95
 blur = true
 padding = { x = 10, y = 10 }
 decorations = "full"
 startup_mode = "Windowed"
-
 [font]
 size = 12.0
-
 [font.normal]
 family = "JetBrains Mono"
 style = "Regular"
-
 [colors.primary]
 background = "#2d1b69"
 foreground = "#e2e2e2"
-
 [colors.cursor]
 text = "#2d1b69"
 cursor = "#ff6ac1"
-
 [colors.selection]
 text = "#e2e2e2"
 background = "#6441a5"
-
 [colors.normal]
 black = "#1a0d33"
 red = "#ff5555"
@@ -383,7 +381,6 @@ blue = "#8be9fd"
 magenta = "#ff79c6"
 cyan = "#9aedfe"
 white = "#e2e2e2"
-
 [colors.bright]
 black = "#44475a"
 red = "#ff6e6e"
@@ -393,28 +390,23 @@ blue = "#d6acff"
 magenta = "#ff92df"
 cyan = "#a4ffff"
 white = "#ffffff"
-
 [[keyboard.bindings]]
 key = "Period"
 mods = "Control"
 action = "IncreaseFontSize"
-
 [[keyboard.bindings]]
 key = "Minus"
 mods = "Control"
 action = "DecreaseFontSize"
-
 [[keyboard.bindings]]
 key = "Key0"
 mods = "Control"
 action = "ResetFontSize"
-
 [cursor]
 style = { shape = "Block", blinking = "On" }
 EOF
 )
 
-# Ensure the config directory exists, then write the new config file.
 echo "Writing new Alacritty configuration..."
 sudo -u saveli mkdir -p "$ALACRITTY_CONFIG_DIR"
 echo "$ALACRITTY_CONFIG" | sudo -u saveli tee "$ALACRITTY_CONFIG_FILE" > /dev/null
@@ -423,18 +415,22 @@ echo "--- Alacritty configuration complete ---"
 echo
 
 # --- I3 CONFIGURATION ---
-echo "--- Configuring i3 to use Alacritty ---"
+echo "--- Configuring i3 ---"
 I3_CONFIG_DIR="/home/saveli/.config/i3"
 I3_CONFIG_FILE="$I3_CONFIG_DIR/config"
-ALACRITTY_BINDING="bindsym \$mod+Return exec alacritty"
 sudo -u saveli mkdir -p "$I3_CONFIG_DIR"
 sudo -u saveli touch "$I3_CONFIG_FILE"
+
+ALACRITTY_BINDING="bindsym \$mod+Return exec alacritty"
 if ! grep -qF "$ALACRITTY_BINDING" "$I3_CONFIG_FILE"; then
     echo "Setting Alacritty as the default terminal in i3..."
     echo "$ALACRITTY_BINDING" | sudo -u saveli tee -a "$I3_CONFIG_FILE" > /dev/null
-    echo "Alacritty has been set as the default terminal in i3."
-else
-    echo "Alacritty is already set as the default terminal in i3."
+fi
+
+I3_BELL_CONFIG="exec --no-startup-id xset -b"
+if ! grep -qF "$I3_BELL_CONFIG" "$I3_CONFIG_FILE"; then
+    echo "Disabling GUI bell in i3..."
+    echo "$I3_BELL_CONFIG" | sudo -u saveli tee -a "$I3_CONFIG_FILE" > /dev/null
 fi
 echo "--- i3 configuration complete ---"
 echo
