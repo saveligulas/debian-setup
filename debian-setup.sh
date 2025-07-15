@@ -464,21 +464,33 @@ if ! command -v gh &>/dev/null; then
 else
     echo "GitHub CLI (gh) is already installed."
 fi
-if ! sudo -u saveli -i bash -c "gh auth status" &>/dev/null; then
-    echo
-    echo "#####################################################################"
-    echo "#                                                                   #"
-    echo "#  GitHub CLI is not authenticated. Using device flow method.       #"
-    echo "#  You will be given a code to enter at https://github.com/login/device #"
-    echo "#                                                                   #"
-    echo "#####################################################################"
-    echo
-    # Use device flow instead of web browser
-    sudo -u saveli -i bash -c "gh auth login --git-protocol https --web=false"
-else
-    echo "GitHub CLI is already authenticated for user 'saveli'."
-fi
-echo "--- GitHub CLI setup complete ---"
+
+# Configure Git to use SSH by default
+echo "Configuring Git to use SSH for GitHub..."
+sudo -u saveli git config --global url."git@github.com:".insteadOf "https://github.com/"
+
+echo
+echo "#####################################################################"
+echo "#                                                                   #"
+echo "#  MANUAL SETUP REQUIRED:                                           #"
+echo "#                                                                   #"
+echo "#  1. Add your SSH key to GitHub:                                   #"
+echo "#     https://github.com/settings/ssh/new                          #"
+echo "#                                                                   #"
+echo "#  2. Your SSH public key:                                          #"
+echo "#####################################################################"
+sudo -u saveli cat "/home/saveli/.ssh/id_ed25519.pub"
+echo "#####################################################################"
+echo "#                                                                   #"
+echo "#  3. After adding the SSH key, you can authenticate GitHub CLI     #"
+echo "#     by running: gh auth login --git-protocol ssh                  #"
+echo "#                                                                   #"
+echo "#  4. Or create a Personal Access Token and run:                    #"
+echo "#     gh auth login --with-token                                     #"
+echo "#                                                                   #"
+echo "#####################################################################"
+echo
+echo "--- GitHub CLI setup complete (manual authentication required) ---"
 echo
 
 # --- CLION INSTALLATION ---
