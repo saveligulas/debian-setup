@@ -79,11 +79,9 @@ echo
 
 # --- RUST INSTALLATION ---
 echo "--- Installing Rust (rustup) ---"
-if ! command -v cargo &>/dev/null; then
+if ! sudo -u saveli -i bash -c 'command -v cargo' &>/dev/null; then
     echo "Rust is not installed. Installing via rustup..."
     sudo -u saveli bash -c "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-    sudo -u saveli bash -c 'echo "export PATH=\"\$HOME/.cargo/bin:\$PATH\"" >> /home/saveli/.profile'
-    source "/home/saveli/.cargo/env"
     echo "Rust has been installed."
 else
     echo "Rust (cargo) is already installed."
@@ -93,22 +91,14 @@ echo
 
 # --- HOMEBREW INSTALLATION ---
 echo "--- Installing Homebrew ---"
-HOMEBREW_PREFIX="/home/saveli/.linuxbrew"
-HOMEBREW_BIN="${HOMEBREW_PREFIX}/bin/brew"
-
+HOMEBREW_BIN="/home/saveli/.linuxbrew/bin/brew"
 if [ ! -f "$HOMEBREW_BIN" ]; then
     echo "Homebrew not found. Installing..."
-    # Run the installer non-interactively to prevent warnings and prompts.
     sudo -u saveli /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    
-    echo "Making Homebrew available to the current script..."
-    eval "$($HOMEBREW_BIN shellenv)"
-    
     echo "Homebrew has been installed."
 else
     echo "Homebrew is already installed."
 fi
-eval "$($HOMEBREW_BIN shellenv)"
 echo "--- Homebrew installation check complete ---"
 echo
 
@@ -116,9 +106,9 @@ echo
 BREW_PACKAGES="git-delta bat fzf exa zoxide ripgrep"
 echo "--- Installing Homebrew tools ---"
 for pkg in $BREW_PACKAGES; do
-    if ! sudo -u saveli brew list "$pkg" &>/dev/null; then
+    if ! sudo -u saveli env "PATH=/home/saveli/.linuxbrew/bin:$PATH" brew list "$pkg" &>/dev/null; then
         echo "Installing $pkg with Homebrew..."
-        sudo -u saveli HOMEBREW_NO_AUTO_UPDATE=1 brew install "$pkg"
+        sudo -u saveli env "PATH=/home/saveli/.linuxbrew/bin:$PATH" HOMEBREW_NO_AUTO_UPDATE=1 brew install "$pkg"
     else
         echo "$pkg is already installed."
     fi
@@ -290,7 +280,7 @@ alias gh_mr_co='gh pr checkout'
 alias gh_fork='gh repo fork --clone'
 alias gh_view='gh repo view --web'
 
-# Ensure Homebrew is in the path
+# Ensure Homebrew is in the path for interactive shells
 eval "$(/home/saveli/.linuxbrew/bin/brew shellenv)"
 # --- End Custom Aliases ---
 EOF
@@ -336,10 +326,10 @@ echo
 
 # --- ALACRITTY INSTALLATION & CONFIGURATION ---
 echo "--- Installing Alacritty ---"
-if ! command -v alacritty &>/dev/null; then
+if ! sudo -u saveli -i bash -c 'command -v alacritty' &>/dev/null; then
     echo "Alacritty not found. Installing from source..."
     apt-get install -y cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
-    sudo -u saveli bash -c "source /home/saveli/.cargo/env && cargo install alacritty"
+    sudo -u saveli -i bash -c "cargo install alacritty"
     echo "Alacritty has been installed."
 else
     echo "Alacritty is already installed."
