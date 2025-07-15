@@ -64,7 +64,7 @@ echo
 
 # --- APT PACKAGE INSTALLATION ---
 # build-essential is required for Homebrew
-DEV_PACKAGES="git wget curl vim neovim zsh i3 jq x11-xserver-utils gpg firefox-esr openssh-client openssh-server build-essential"
+DEV_PACKAGES="git wget curl vim neovim zsh i3 jq x11-xserver-utils gpg firefox-esr openssh-client openssh-server build-essential xorg xinit x11-xserver-utils lightdm firmware-amd-graphics xserver-xorg-video-amdgpu mesa-vulkan-drivers libgl1-mesa-dri unzip"
 echo "--- Installing APT packages ---"
 apt-get update
 for pkg in $DEV_PACKAGES; do
@@ -76,6 +76,23 @@ for pkg in $DEV_PACKAGES; do
     fi
 done
 echo "--- APT packages installation complete ---"
+echo
+
+# --- JETBRAINS MONO FONT INSTALLATION ---
+echo "--- Installing JetBrains Mono Font ---"
+if [ ! -d "/usr/share/fonts/truetype/jetbrains-mono" ]; then
+    echo "JetBrains Mono font not found. Installing..."
+    wget -q https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip -O /tmp/jetbrains-mono.zip
+    unzip -q /tmp/jetbrains-mono.zip -d /tmp/jetbrains-mono/
+    mkdir -p /usr/share/fonts/truetype/jetbrains-mono
+    cp /tmp/jetbrains-mono/fonts/ttf/*.ttf /usr/share/fonts/truetype/jetbrains-mono/
+    fc-cache -fv > /dev/null 2>&1
+    rm -rf /tmp/jetbrains-mono*
+    echo "JetBrains Mono font installed."
+else
+    echo "JetBrains Mono font is already installed."
+fi
+echo "--- JetBrains Mono font installation complete ---"
 echo
 
 # --- RUST INSTALLATION ---
@@ -428,20 +445,153 @@ echo "--- Configuring i3 ---"
 I3_CONFIG_DIR="/home/saveli/.config/i3"
 I3_CONFIG_FILE="$I3_CONFIG_DIR/config"
 sudo -u saveli mkdir -p "$I3_CONFIG_DIR"
-sudo -u saveli touch "$I3_CONFIG_FILE"
 
-ALACRITTY_BINDING="bindsym \$mod+Return exec alacritty"
-if ! grep -qF "$ALACRITTY_BINDING" "$I3_CONFIG_FILE"; then
-    echo "Setting Alacritty as the default terminal in i3..."
-    echo "$ALACRITTY_BINDING" | sudo -u saveli tee -a "$I3_CONFIG_FILE" > /dev/null
-fi
+# Create basic i3 config with Alt as mod key
+I3_CONFIG=$(cat <<'EOF'
+# i3 config file (v4)
+# Use Alt as modifier key
+set $mod Mod1
 
-I3_BELL_CONFIG="exec --no-startup-id xset -b"
-if ! grep -qF "$I3_BELL_CONFIG" "$I3_CONFIG_FILE"; then
-    echo "Disabling GUI bell in i3..."
-    echo "$I3_BELL_CONFIG" | sudo -u saveli tee -a "$I3_CONFIG_FILE" > /dev/null
-fi
+# Font for window titles
+font pango:JetBrains Mono 10
+
+# Start a terminal
+bindsym $mod+Return exec alacritty
+
+# Kill focused window
+bindsym $mod+Shift+q kill
+
+# Start dmenu
+bindsym $mod+d exec dmenu_run
+
+# Change focus
+bindsym $mod+j focus left
+bindsym $mod+k focus down
+bindsym $mod+l focus up
+bindsym $mod+semicolon focus right
+
+# Move focused window
+bindsym $mod+Shift+j move left
+bindsym $mod+Shift+k move down
+bindsym $mod+Shift+l move up
+bindsym $mod+Shift+semicolon move right
+
+# Split in horizontal orientation
+bindsym $mod+h split h
+
+# Split in vertical orientation
+bindsym $mod+v split v
+
+# Enter fullscreen mode
+bindsym $mod+f fullscreen toggle
+
+# Change container layout
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+
+# Toggle tiling / floating
+bindsym $mod+Shift+space floating toggle
+
+# Reload the configuration file
+bindsym $mod+Shift+c reload
+
+# Restart i3 inplace
+bindsym $mod+Shift+r restart
+
+# Exit i3
+bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'Exit i3?' -B 'Yes' 'i3-msg exit'"
+
+# Disable bell sound
+exec --no-startup-id xset -b
+
+# Workspaces
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+
+# Resize mode
+mode "resize" {
+    bindsym j resize shrink width 10 px or 10 ppt
+    bindsym k resize grow height 10 px or 10 ppt
+    bindsym l resize shrink height 10 px or 10 ppt
+    bindsym semicolon resize grow width 10 px or 10 ppt
+
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+EOF
+)
+
+echo "Writing i3 configuration..."
+echo "$I3_CONFIG" | sudo -u saveli tee "$I3_CONFIG_FILE" > /dev/null
 echo "--- i3 configuration complete ---"
+echo
+
+# --- DISPLAY MANAGER SETUP ---
+echo "--- Setting up display manager ---"
+if ! systemctl is-enabled lightdm &>/dev/null; then
+    echo "Enabling lightdm display manager..."
+    systemctl enable lightdm
+else
+    echo "lightdm is already enabled."
+fi
+echo "--- Display manager setup complete ---"
+echo
+
+# --- STARTX CONFIGURATION ---
+echo "--- Configuring startx for i3 ---"
+XINITRC_FILE="/home/saveli/.xinitrc"
+if [ ! -f "$XINITRC_FILE" ]; then
+    echo "Creating .xinitrc for startx..."
+    echo "exec i3" | sudo -u saveli tee "$XINITRC_FILE" > /dev/null
+    sudo -u saveli chmod +x "$XINITRC_FILE"
+    echo ".xinitrc created."
+else
+    echo ".xinitrc already exists."
+fi
+
+# Optional: Add auto-startx to .zshrc (commented out by default)
+ZSHRC_AUTO_STARTX=$(cat <<'EOF'
+
+# Auto-start X11 on tty1 (uncomment to enable)
+# if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
+#     exec startx
+# fi
+EOF
+)
+
+if ! sudo -u saveli grep -q "Auto-start X11" "$ZSHRC_FILE"; then
+    echo "Adding auto-startx option to .zshrc (commented out)..."
+    echo "$ZSHRC_AUTO_STARTX" | sudo -u saveli tee -a "$ZSHRC_FILE" > /dev/null
+fi
+
+echo
+echo "#####################################################################"
+echo "#                                                                   #"
+echo "#  MULTIPLE WAYS TO START i3:                                       #"
+echo "#                                                                   #"
+echo "#  1. Graphical Login (automatic after reboot):                     #"
+echo "#     - Select 'i3' session at login screen                         #"
+echo "#                                                                   #"
+echo "#  2. Manual startx:                                                 #"
+echo "#     - Login to console as 'saveli'                                #"
+echo "#     - Run: startx                                                  #"
+echo "#                                                                   #"
+echo "#  3. Auto-startx on tty1 (optional):                               #"
+echo "#     - Edit ~/.zshrc and uncomment the auto-startx lines           #"
+echo "#                                                                   #"
+echo "#####################################################################"
+echo "--- startx configuration complete ---"
 echo
 
 # --- GITHUB CLI INSTALLATION & AUTHENTICATION ---
