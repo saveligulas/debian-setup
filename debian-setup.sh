@@ -93,17 +93,13 @@ echo
 
 # --- HOMEBREW INSTALLATION ---
 echo "--- Installing Homebrew ---"
-# Note: Homebrew on Linux for a specific user installs to their home directory.
 HOMEBREW_PREFIX="/home/saveli/.linuxbrew"
 HOMEBREW_BIN="${HOMEBREW_PREFIX}/bin/brew"
 
 if [ ! -f "$HOMEBREW_BIN" ]; then
     echo "Homebrew not found. Installing..."
-    # Run the installer as 'saveli'. NONINTERACTIVE=1 prevents prompts.
     sudo -u saveli /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     
-    # The installer adds the PATH setup to .profile, but we need it for the current script.
-    # Source the brew environment to make it available to the rest of this script.
     echo "Making Homebrew available to the current script..."
     eval "$($HOMEBREW_BIN shellenv)"
     
@@ -111,7 +107,6 @@ if [ ! -f "$HOMEBREW_BIN" ]; then
 else
     echo "Homebrew is already installed."
 fi
-# Always ensure brew is available for subsequent steps in the script
 eval "$($HOMEBREW_BIN shellenv)"
 echo "--- Homebrew installation check complete ---"
 echo
@@ -122,7 +117,8 @@ echo "--- Installing Homebrew tools ---"
 for pkg in $BREW_PACKAGES; do
     if ! sudo -u saveli brew list "$pkg" &>/dev/null; then
         echo "Installing $pkg with Homebrew..."
-        sudo -u saveli brew install "$pkg"
+        # Set HOMEBREW_NO_AUTO_UPDATE=1 to prevent brew from auto-updating, which can hang the script.
+        sudo -u saveli HOMEBREW_NO_AUTO_UPDATE=1 brew install "$pkg"
     else
         echo "$pkg is already installed."
     fi
@@ -154,17 +150,12 @@ SSH_KEY_FILE="${SSH_DIR}/id_ed25519"
 
 if [ ! -f "$SSH_KEY_FILE" ]; then
     echo "SSH key not found. Generating a new one..."
-    # Create the .ssh directory with correct permissions if it doesn't exist
     sudo -u saveli mkdir -p "$SSH_DIR"
     sudo -u saveli chmod 700 "$SSH_DIR"
-
-    # Generate the key non-interactively
     sudo -u saveli ssh-keygen -t ed25519 -C "saveli.gulas@gmail.com" -N "" -f "$SSH_KEY_FILE"
-
     echo "SSH key generated successfully."
     echo
     echo "######################### YOUR PUBLIC SSH KEY #########################"
-    # Print the public key for the user to copy
     sudo -u saveli cat "${SSH_KEY_FILE}.pub"
     echo "#####################################################################"
     echo
